@@ -115,12 +115,26 @@ function yerAdi(p) {
 const ES = [[/\b(uçak|havaalanı|havaalani|hava alanı|havalimani)\b/gi, "havalimanı"], [/\botogar\b/gi, "otogar"], [/\bbenzinci\b/gi, "benzinlik"]];
 const duzelt = q => ES.reduce((s, [r, y]) => s.replace(r, y), q);
 // arama: Photon (yakına göre sıralı), sonuç yoksa Nominatim
-async function yerAra(q, limit = 7, yakin = null) {
-  q = duzelt(q);
+async function photon(q, limit, yakin) {
   let u = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=${limit}&bbox=${TR_BBOX}`;
   if (yakin) u += `&lat=${yakin.lat}&lon=${yakin.lon}&location_bias_scale=0.4`;
+  try { return ((await (await fetch(u)).json()).features || []).filter(x => x.properties.countrycode === "TR"); } catch { return []; }
+}
+// kullanıcının yazdığı tam isim haritada kayıtlı olmayabilir ("Terminal Pide Uçak Restoran" → kayıtlı ad "Terminal Pide"):
+// sırayla dene: yazıldığı gibi → eşanlamlı → genel kelimeler (restoran, kafe…) atılmış → her seferinde bir kelime eksik → ilk iki kelime
+const GENEL = /\b(restoran|restaurant|lokanta|lokantası|cafe|kafe|kafesi|otel|oteli|pansiyon|salonu|evi|ve|&)\b/gi;
+function denemeler(q) {
+  const es = duzelt(q), l = es !== q ? [es, q] : [q];   // "uçak" yazdıysa önce havalimanı ara
+  const sade = q.replace(GENEL, " ").replace(/\s+/g, " ").trim(); if (sade) l.push(sade);
+  const k = sade.split(" ").filter(Boolean);
+  if (k.length >= 3) { for (let i = k.length - 1; i >= 0; i--) l.push(k.filter((_, j) => j !== i).join(" ")); l.push(k.slice(0, 2).join(" ")); }
+  return [...new Set(l.filter(s => s.length >= 2))].slice(0, 7);
+}
+async function yerAra(q, limit = 7, yakin = null) {
   let f = [];
-  try { f = ((await (await fetch(u)).json()).features || []).filter(x => x.properties.countrycode === "TR"); } catch { }
+  for (const d of denemeler(q)) { f = await photon(d, limit, yakin); if (f.length) break; }
+  // havalimanı arandıysa gerçek havalimanını öne al
+  if (/havalimanı/i.test(duzelt(q))) f.sort((a, b) => (b.properties.osm_value === "aerodrome") - (a.properties.osm_value === "aerodrome"));
   if (!f.length) {
     try {
       const n = await (await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=tr&accept-language=tr&limit=${limit}&q=${encodeURIComponent(q)}`)).json();
