@@ -39,7 +39,14 @@ function haritaKur() {
       const yaz = el("div", "sec-ad", "…"); d.appendChild(yaz);
       const p = new maplibregl.Popup({ offset: 8 }).setLngLat(e.lngLat).setDOMContent(d).addTo(harita);
       const b1 = el("button", null, "Buradan başla"), b2 = el("button", null, "Buraya git");
-      d.append(b1, b2);
+      const kad = el("input"); kad.placeholder = "İsim ver (ör. Terminal Pide Uçak Restoran)"; kad.className = "kayit-ad";
+      const b3 = el("button", "kaydet", "★ Kayıtlı yerlerime ekle");
+      d.append(b1, b2, kad, b3);
+      b3.onclick = () => {
+        const isim = kad.value.trim() || ad; if (!isim) return;
+        const l = kayitliOku().filter(y => kucuk(y.ad) !== kucuk(isim)); l.unshift({ ad: isim, ...c }); kayitliYaz(l);
+        ad = isim; yaz.textContent = "Kaydedildi: " + isim + " — artık aramada çıkar"; b3.disabled = true;
+      };
       let ad = "Haritadan seçilen yer";
       fetch(`https://photon.komoot.io/reverse?lon=${c.lon}&lat=${c.lat}&limit=1`).then(r => r.json()).then(j => {
         const pr = j.features?.[0]?.properties; if (pr) { ad = [pr.name, pr.district || pr.city].filter(Boolean).join(", ") || ad; yaz.textContent = ad; }
@@ -109,6 +116,7 @@ const TUR = { restaurant: "Restoran", fast_food: "Lokanta", cafe: "Kafe", bakery
 function yerAdi(p) {
   const pr = p.properties;
   const ust = [pr.district, pr.county, pr.city, pr.state].filter((v, i, a) => v && v !== pr.name && a.indexOf(v) === i);
+  if (pr.kayitli) return { ad: pr.name, alt: "★ Kayıtlı yerim" };
   return { ad: pr.name || ust[0] || "Yer", alt: [TUR[pr.osm_value], ...ust.slice(0, 2)].filter(Boolean).join(" · ") };
 }
 // motorcunun yazdığı günlük kelimeler → aranacak kelime
@@ -131,6 +139,11 @@ function denemeler(q) {
   return [...new Set(l.filter(s => s.length >= 2))].slice(0, 7);
 }
 async function yerAra(q, limit = 7, yakin = null) {
+  const kay = kayitliAra(q);
+  if (kay.length) return [...kay, ...(await yerAraHarita(q, Math.max(2, limit - kay.length), yakin))];
+  return yerAraHarita(q, limit, yakin);
+}
+async function yerAraHarita(q, limit, yakin) {
   let f = [];
   for (const d of denemeler(q)) { f = await photon(d, limit, yakin); if (f.length) break; }
   // havalimanı arandıysa gerçek havalimanını öne al
@@ -144,6 +157,28 @@ async function yerAra(q, limit = 7, yakin = null) {
   }
   return f;
 }
+// ---- kayıtlı yerlerim (haritada olmayan işletmeler için; yalnız bu telefonda saklanır)
+const kayitliOku = () => { try { return JSON.parse(localStorage.getItem("czz-yerlerim") || "[]"); } catch { return []; } };
+const kayitliYaz = l => { try { localStorage.setItem("czz-yerlerim", JSON.stringify(l.slice(0, 60))); } catch { } };
+const kucuk = s => s.toLocaleLowerCase("tr").normalize("NFD").replace(/[̀-ͯ]/g, "");
+function kayitliAra(q) {
+  const k = kucuk(q).split(/\s+/).filter(Boolean);
+  return kayitliOku().filter(y => k.every(p => kucuk(y.ad).includes(p))).map(y => ({ geometry: { coordinates: [y.lon, y.lat] }, properties: { name: y.ad, countrycode: "TR", kayitli: true } }));
+}
+// ---- yapıştırılan harita linkinden konum (Google Haritalar / Apple Haritalar / koordinat): servis çağrısı yok, yalnız metni okur
+function linktenYer(s) {
+  s = s.trim(); let lat, lon, ad = null;
+  const m3 = s.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);            // Google: yerin kendisi
+  const mAt = s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);                // Google: ekran merkezi
+  const mQ = s.match(/[?&](?:q|ll|daddr|destination)=(-?\d+\.\d+),\s*(-?\d+\.\d+)/);   // Apple / Google yol tarifi
+  const mDuz = s.match(/^(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})$/);            // "40.958, 39.855"
+  const m = m3 || mQ || mAt || mDuz; if (!m) return null;
+  lat = +m[1]; lon = +m[2];
+  if (!(lat > 35 && lat < 43 && lon > 25 && lon < 45.5)) return null;   // Türkiye dışı
+  const mp = s.match(/\/place\/([^/@?]+)/);
+  if (mp) { try { ad = decodeURIComponent(mp[1].replace(/\+/g, " ")); } catch { } }
+  return { ad: ad || `${lat.toFixed(5)}, ${lon.toFixed(5)}`, lat, lon };
+}
 const referans = alan => alan === "nereye" ? (secim.nereden || sonKonum) : sonKonum;
 let sonKonum = null;
 function aramaKur(alan) {
@@ -152,6 +187,9 @@ function aramaKur(alan) {
   giris.addEventListener("input", () => {
     secim[alan] = null; clearTimeout(zam);
     const q = giris.value.trim(); if (q.length < 2) { liste.hidden = true; return; }
+    const lk = linktenYer(q);
+    if (lk) { secim[alan] = lk; giris.value = lk.ad; liste.hidden = true; $("#durum").className = "durum"; $("#durum").textContent = "Linkteki konum alındı: " + lk.ad; return; }
+    if (/^https?:\/\/(maps\.app\.goo\.gl|goo\.gl)\//i.test(q)) { liste.hidden = true; $("#durum").className = "durum hata"; $("#durum").textContent = "Kısa link okunamıyor: linki tarayıcıda açıp adres çubuğundaki uzun linki yapıştır."; return; }
     zam = setTimeout(async () => {
       try {
         sonuclar = await yerAra(q, 7, referans(alan));

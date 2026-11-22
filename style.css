@@ -138,6 +138,9 @@ body.sonuclu .ornekler { display: none; }
 .sec-popup { display: grid; gap: 6px; min-width: 170px; }
 .sec-popup .sec-ad { color: var(--soluk); font-size: 12px; }
 .sec-popup button { font: 700 13px Inter; border: 0; border-radius: 9px; padding: 8px; cursor: pointer; background: var(--vurgu); color: #0c0d10; }
+.sec-popup .kayit-ad { min-height: 38px; padding: 8px 10px; font-size: 14px; border-radius: 9px; margin-top: 4px; }
+.sec-popup button.kaydet { background: transparent; color: var(--vurgu); border: 1px dashed var(--vurgu); }
+.sec-popup button:disabled { opacity: .6; }
 .sec-popup button + button { background: var(--kart2); color: var(--yazi); border: 1px solid var(--cizgi); }
 
 /* sürüş modu: üstte kask içi gösterge */
