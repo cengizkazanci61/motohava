@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>CZZ Moto Hava Durumu</title>
+<meta name="description" content="Motorcular için rota üzerinde saat saat hava durumu: yağmur, rüzgâr, buzlanma, sis ve en iyi çıkış saati.">
+<meta name="theme-color" content="#0c0d10">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CZZ Moto Hava">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,700;0,800;1,800&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="harita" aria-label="Rota haritası"></div>
+<div class="harita-karart"></div>
+
+<aside class="panel" id="panel">
+  <header class="ust">
+    <div class="logo"><span class="logo-cip"><img src="logo.png" alt="CZZ MOTOBLOG" width="44" height="43"></span><span>MOTO <b>HAVA DURUMU</b></span></div>
+    <span class="rozet">BETA</span>
+  </header>
+
+  <section class="giris" id="giris">
+    <h1>Yola çıkmadan<br><em>yolun havasını</em> bil.</h1>
+    <p class="alt">Rotanın her noktasında, <b>oraya vardığın saatteki</b> havayı gösterir: yağmur, yan rüzgâr, buz, sis, kaskın içindeki soğuk.</p>
+  </section>
+
+  <form id="form" autocomplete="off">
+    <div class="rota-giris">
+      <span class="cizgi-dikey" aria-hidden="true"></span>
+      <div class="alan">
+        <label for="nereden">Nereden</label>
+        <div class="giris-sar">
+          <input id="nereden" placeholder="Şehir, ilçe, yer adı" required>
+          <button type="button" class="konum" id="konumum" title="Bulunduğum yer" aria-label="Bulunduğum yer">
+            <svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="4" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+          </button>
+          <ul class="oneri" id="oneri-nereden" hidden></ul>
+        </div>
+      </div>
+      <div class="alan">
+        <label for="nereye">Nereye</label>
+        <div class="giris-sar">
+          <input id="nereye" placeholder="Şehir, ilçe, yer adı" required>
+          <ul class="oneri" id="oneri-nereye" hidden></ul>
+        </div>
+      </div>
+    </div>
+    <div class="satir">
+      <div class="alan"><label for="cikis">Çıkış zamanı</label><input id="cikis" type="datetime-local" required></div>
+      <div class="alan"><label for="tempo">Tempon</label>
+        <select id="tempo"><option value="1.15">Sakin</option><option value="1" selected>Normal</option><option value="0.9">Seri</option></select></div>
+    </div>
+    <label class="kutu"><input type="checkbox" id="mola" checked><span>Her 2 saatte 15 dk mola</span></label>
+    <button class="ana" id="hesapla" type="submit"><span>ROTANIN HAVASINI GÖSTER</span>
+      <svg viewBox="0 0 24 24" width="22" height="22"><path d="M5 12h13M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <p class="durum" id="durum" role="status"></p>
+    <div class="ornekler" id="ornekler">
+      <span>Dene:</span>
+      <button type="button" data-a="Trabzon" data-b="Gümüşhane">Zigana · Trabzon → Gümüşhane</button>
+      <button type="button" data-a="İstanbul" data-b="Bolu">Bolu Dağı · İstanbul → Bolu</button>
+      <button type="button" data-a="Antalya" data-b="Konya">Toroslar · Antalya → Konya</button>
+      <button type="button" data-a="Rize" data-b="Ayder">Ayder · Rize → Ayder</button>
+    </div>
+  </form>
+
+  <div id="sonuc" hidden>
+    <div class="gosterge-kart">
+      <div class="gosterge" id="gosterge"></div>
+      <div class="hukum">
+        <div class="hukum-ust" id="hukumUst"></div>
+        <h2 id="hukum"></h2>
+        <p id="rotaBilgi"></p>
+      </div>
+    </div>
+    <div class="istatistik" id="istatistik"></div>
+    <div class="uyarilar" id="uyarilar"></div>
+    <button class="ana surus-bas" id="yolaCik" type="button"><span>YOLA ÇIK · CANLI TAKİP</span>
+      <svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="4" fill="currentColor"/><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.4"/></svg></button>
+    <div class="kart vurgu" id="enIyi" hidden></div>
+    <div class="kart" id="giyim"></div>
+    <div class="kart">
+      <h3>Rakım ve yol durumu</h3>
+      <div class="profil" id="profil"></div>
+    </div>
+    <h3 class="bolum">Yol boyunca saat saat</h3>
+    <ol class="zaman" id="zaman"></ol>
+    <p class="kaynak">Hava: Open-Meteo · Rota: OSRM · Harita: OpenFreeMap / © OpenStreetMap katkıda bulunanlar. Tahminler değişebilir; yola çıkmadan son durumu kontrol et, hızını koşullara göre ayarla.</p>
+  </div>
+</aside>
+
+<div class="hud" id="hud" hidden>
+  <div class="hud-ust">
+    <div class="hud-hiz"><b id="hudHiz">0</b><span>km/sa</span></div>
+    <div class="hud-orta">
+      <div class="hud-satir"><span id="hudGidilen">0 km</span><span id="hudKalan">kalan —</span></div>
+      <div class="hud-bar"><i id="hudBar"></i></div>
+      <div class="hud-satir"><span id="hudVaris">varış —</span><span id="hudHava">—</span></div>
+    </div>
+    <button class="hud-dur" id="hudDur" aria-label="Sürüşü bitir">BİTİR</button>
+  </div>
+  <div class="hud-risk" id="hudRisk"></div>
+</div>
+
+<div class="lejant"><span class="n yesil"></span>Rahat<span class="n sari"></span>Dikkat<span class="n kirmizi"></span>Zor</div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="hava.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
